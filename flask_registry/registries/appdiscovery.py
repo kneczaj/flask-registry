@@ -149,7 +149,20 @@ class ExtensionRegistry(ListRegistry):
     """
     def __init__(self, app):
         super(ExtensionRegistry, self).__init__()
-        for ext_name in app.config.get('EXTENSIONS', []):
+        self.loaded_extensions = set()
+        self.update(app)
+
+    def update(self, app):
+        """
+        Loads new extensions which were added since __init__ to 'EXTENSIONS' 
+        variable
+        """
+        to_load = app.config.get('EXTENSIONS', [])
+        if self.loaded_extensions:
+            to_remove = set(to_load) - self.loaded_extensions
+            for common_item in to_remove:
+                to_load.remove(common_item)
+        for ext_name in to_load:
             self.register(app, ext_name)
 
     def register(self, app, ext_name):  # pylint: disable=W0221
@@ -160,10 +173,13 @@ class ExtensionRegistry(ListRegistry):
         :param ext_name: An import path (e.g. a package, module, object) which
             when loaded has an method ``setup_app()``.
         """
+        if ext_name in self.loaded_extensions:
+            return
         ext = import_string(ext_name)
         super(ExtensionRegistry, self).register(ext_name)
         ext = getattr(ext, 'setup_app', ext)
         ext(app)
+        self.loaded_extensions.add(ext_name)
 
     def unregister(self):  # pylint: disable=W0221
         """
